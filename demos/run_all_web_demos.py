@@ -12,6 +12,7 @@ from demos.web_demo_eavesdropping import WebEavesdroppingDemo
 from demos.web_demo_modification import WebModificationDemo
 from demos.web_demo_analytics import WebAnalyticsDemo
 from demos.web_demo_tampering import WebTamperingDemo
+from demos.web_demo_replay import WebReplayDemo
 
 def print_header(text):
     print("\n" + "=" * 80)
@@ -25,6 +26,7 @@ def run_all_web_demos():
     demos = [
         ("Eavesdropping Attack", WebEavesdroppingDemo),
         ("Modification Attack", WebModificationDemo),
+        ("Replay Attack", WebReplayDemo),
         ("Analytics Dashboard", WebAnalyticsDemo),
         ("Tampering Detection", WebTamperingDemo),
     ]
