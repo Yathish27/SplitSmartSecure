@@ -6,6 +6,7 @@ const API_BASE = '';
 // State Management
 let currentUser = null;
 let isLoggedIn = false;
+let integrityKey = null;  // For request integrity verification (modification protection)
 let payerChart = null;
 let trendChart = null;
 
@@ -287,12 +288,28 @@ async function checkStatus() {
         if (data.success && data.logged_in) {
             currentUser = data.username;
             isLoggedIn = data.has_session;
+            
+            // Retrieve integrity key from server or localStorage
+            integrityKey = data.integrity_key || localStorage.getItem('integrityKey') || null;
+            if (integrityKey && !data.integrity_key) {
+                // If we got it from localStorage but server doesn't have it, clear it
+                localStorage.removeItem('integrityKey');
+                integrityKey = null;
+            } else if (integrityKey) {
+                // Store in localStorage for persistence
+                localStorage.setItem('integrityKey', integrityKey);
+            }
+            
             updateUI();
             
             if (isLoggedIn) {
                 await loadLedger();
                 await loadBalances();
             }
+        } else {
+            // Not logged in - clear integrity key
+            integrityKey = null;
+            localStorage.removeItem('integrityKey');
         }
     } catch (error) {
         console.error('Status check failed:', error);
@@ -346,6 +363,11 @@ async function login(username, password) {
         if (data.success) {
             currentUser = username;
             isLoggedIn = true;
+            integrityKey = data.integrity_key || null;  // Store integrity key for HMAC
+            // Store in localStorage for persistence across page refreshes
+            if (integrityKey) {
+                localStorage.setItem('integrityKey', integrityKey);
+            }
             showToast(data.message, 'success');
             updateUI();
             await loadLedger();
@@ -376,6 +398,8 @@ async function logout() {
         if (data.success) {
             currentUser = null;
             isLoggedIn = false;
+            integrityKey = null;  // Clear integrity key on logout
+            localStorage.removeItem('integrityKey');  // Remove from localStorage
             showToast('Logged out successfully', 'success');
             updateUI();
         }
@@ -384,18 +408,65 @@ async function logout() {
     }
 }
 
+// Compute HMAC for request integrity (modification protection)
+async function computeHMAC(message, key) {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(key);
+    const messageData = encoder.encode(message);
+    
+    // Import key for HMAC
+    const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    
+    // Compute HMAC
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+    
+    // Convert to hex string
+    const hashArray = Array.from(new Uint8Array(signature));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Add Expense
 async function addExpense(payer, amount, description) {
     try {
         showToast('Submitting expense...', 'warning');
         
+        const requestBody = JSON.stringify({ payer, amount, description });
+        
+        // Compute HMAC for request integrity (modification protection)
+        let headers = {
+            'Content-Type': 'application/json'
+        };
+        
+        // Get integrity key from variable or localStorage
+        const keyToUse = integrityKey || localStorage.getItem('integrityKey');
+        
+        if (keyToUse) {
+            try {
+                const hmac = await computeHMAC(requestBody, keyToUse);
+                headers['X-Request-HMAC'] = hmac;
+                // Update the variable if we got it from localStorage
+                if (!integrityKey && keyToUse) {
+                    integrityKey = keyToUse;
+                }
+            } catch (error) {
+                console.error('HMAC computation failed:', error);
+                // Continue without HMAC - server will reject, but at least we tried
+            }
+        } else {
+            console.warn('No integrity key available for HMAC computation');
+        }
+        
         const response = await fetch(`${API_BASE}/api/add_expense`, {
             method: 'POST',
             credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ payer, amount, description })
+            headers: headers,
+            body: requestBody
         });
         
         const data = await response.json();
