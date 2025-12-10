@@ -209,42 +209,63 @@ class WebDemoBase:
         
         # Make sure we're on the dashboard
         self.driver.get(self.base_url)
-        time.sleep(2)  # Wait for page to load
+        time.sleep(3)  # Wait for page to load
         
         # Wait for dashboard to be visible
         try:
-            WebDriverWait(self.driver, 10).until(
+            WebDriverWait(self.driver, 15).until(
                 EC.presence_of_element_located((By.ID, "expenseForm"))
             )
-        except:
-            print("[Web Demo] Warning: Expense form not found, user may not be logged in")
+            # Also wait for form to be visible and enabled
+            WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "payer"))
+            )
+        except Exception as e:
+            print(f"[Web Demo] Warning: Expense form not ready: {e}")
             return False
         
         # Fill expense form
-        payer_input = self.wait_for_element(By.ID, "payer")
-        amount_input = self.wait_for_element(By.ID, "amount")
-        desc_input = self.wait_for_element(By.ID, "description")
-        
-        if payer_input and amount_input and desc_input:
-            try:
-                payer_input.clear()
-                payer_input.send_keys(payer)
-                amount_input.clear()
-                amount_input.send_keys(str(amount))
-                desc_input.clear()
-                desc_input.send_keys(description)
-                
-                # Submit form
-                submit_btn = self.wait_for_clickable(By.XPATH, "//form[@id='expenseForm']//button[@type='submit']")
-                if submit_btn:
-                    submit_btn.click()
-                    time.sleep(3)  # Wait for submission
-                    return True
-            except Exception as e:
-                print(f"[Web Demo] Error adding expense: {e}")
-                return False
-        
-        return False
+        try:
+            # Wait for elements to be clickable
+            payer_input = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "payer"))
+            )
+            amount_input = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "amount"))
+            )
+            desc_input = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.ID, "description"))
+            )
+            
+            # Scroll element into view
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", payer_input)
+            time.sleep(0.5)
+            
+            # Clear and fill fields
+            payer_input.click()
+            payer_input.clear()
+            payer_input.send_keys(payer)
+            
+            amount_input.click()
+            amount_input.clear()
+            amount_input.send_keys(str(amount))
+            
+            desc_input.click()
+            desc_input.clear()
+            desc_input.send_keys(description)
+            
+            # Submit form
+            submit_btn = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//form[@id='expenseForm']//button[@type='submit']"))
+            )
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", submit_btn)
+            time.sleep(0.5)
+            submit_btn.click()
+            time.sleep(3)  # Wait for submission
+            return True
+        except Exception as e:
+            print(f"[Web Demo] Error adding expense: {e}")
+            return False
     
     def get_network_logs(self):
         """Get network request logs from browser."""

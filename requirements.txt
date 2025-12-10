@@ -17,3 +17,7 @@ flask-cors>=4.0.0
 
 # For password hashing
 bcrypt>=4.0.0
+
+# For web UI demos (browser automation)
+selenium>=4.15.0
+webdriver-manager>=4.0.0
