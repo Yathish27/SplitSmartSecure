@@ -27,32 +27,44 @@ SplitSmart is a networked expense-splitting service for a fixed group of users (
    - **AES-256-CBC-HMAC**: Compatibility option
    - Automatic algorithm selection based on message size
 
-3. **⛓️ Blockchain Ledger**
+3. **🛡️ Web API Security Enhancements (NEW)**
+   - **HMAC-SHA256 Request Integrity**: All web API requests protected with HMAC
+   - **Replay Attack Protection**: Request hash deduplication (5-minute window)
+   - **Modification Attack Protection**: HMAC verification detects tampered requests
+   - **Session-based Integrity Keys**: Unique key per user session
+   - **Client-side HMAC Computation**: Web Crypto API for browser-based protection
+
+4. **⛓️ Blockchain Ledger**
    - Block structure with heights and hashes
    - Merkle root computation
    - Tamper-evident hash chain
    - Chain integrity verification
 
-4. **🔑 Password Authentication**
+5. **🔑 Password Authentication**
    - Username/password login
    - Secure password hashing (bcrypt)
    - Session management
 
-5. **📊 Analytics Dashboard**
+6. **📊 Analytics Dashboard**
    - Expense summaries
    - Charts and visualizations
    - Detailed analysis
    - Balance calculations
 
-6. **🚀 Deployment Ready**
+7. **🚀 Deployment Ready**
    - Railway, Render, Heroku configurations
    - Production-ready setup
    - Environment variable support
 
-7. **📽️ Presentation**
+8. **📽️ Presentation**
    - Complete PowerPoint presentation
    - 17 slides covering all features
    - Attack demonstrations
+
+9. **🧪 Burp Suite Testing Guide (NEW)**
+   - Comprehensive guide for testing attacks with Burp Suite
+   - Step-by-step instructions for eavesdropping, modification, replay, and tampering tests
+   - Expected results and verification steps
 
 ## 🔒 Security Features
 
@@ -80,12 +92,34 @@ SplitSmart is a networked expense-splitting service for a fixed group of users (
 | Attack Type | Defense Mechanism | Implementation | Status |
 |------------|-------------------|----------------|--------|
 | **Eavesdropping** | Multiple encryption algorithms | AES-256-GCM, ChaCha20-Poly1305, AES-CBC-HMAC | ✅ Protected |
-| **Modification** | Authentication tags + signatures | GCM tags, Poly1305 MAC, HMAC | ✅ Protected |
+| **Modification** | Authentication tags + HMAC-SHA256 | GCM tags, Poly1305 MAC, HMAC-SHA256 (Web API) | ✅ Protected |
 | **Spoofing** | RSA-PSS digital signatures | Each entry signed by user | ✅ Protected |
-| **Replay** | Monotonic counters | Old messages rejected | ✅ Protected |
+| **Replay** | Monotonic counters + Request deduplication | Protocol-level counters + Web API hash tracking | ✅ Protected |
 | **Ledger Tampering** | Blockchain hash chain | Breaks detected on startup | ✅ Protected |
 | **Brute Force** | Rate limiting | API rate limits | ✅ Protected |
 | **Injection** | Input validation | Sanitization and validation | ✅ Protected |
+
+### Web API Security Layers
+
+The web application implements **additional security layers** on top of the cryptographic protocol:
+
+1. **Request Integrity (HMAC-SHA256)**
+   - Each request includes `X-Request-HMAC` header
+   - HMAC computed over request body using session-based integrity key
+   - Server verifies HMAC before processing
+   - Detects any modification to request payload
+
+2. **Replay Protection (Request Hash Deduplication)**
+   - Tracks processed request hashes in memory
+   - 5-minute protection window
+   - Rejects duplicate requests within window
+   - Prevents replay attacks at web API level
+
+3. **Protocol-Level Protection**
+   - Underlying cryptographic protocol still active
+   - AES-256-GCM encryption for protocol messages
+   - RSA-PSS signatures for expense records
+   - Monotonic counters for protocol-level replay protection
 
 ## 🏗️ Architecture
 
@@ -135,6 +169,8 @@ SplitSmart is a networked expense-splitting service for a fixed group of users (
 - **Hash Function**: SHA-256
 - **Key Derivation**: HKDF-SHA256
 - **Password Hashing**: bcrypt
+- **Request Integrity (Web API)**: HMAC-SHA256 (256-bit keys)
+- **Replay Protection (Web API)**: SHA-256 request hashing with time-windowed deduplication
 
 ### Security Level
 
@@ -648,23 +684,26 @@ Client                                Server
 ### Security Properties
 
 ✅ **Confidentiality**: All expense data encrypted with multiple algorithms  
-✅ **Integrity**: Modifications detected via authentication tags and signatures  
+✅ **Integrity**: Modifications detected via authentication tags, signatures, and HMAC-SHA256  
 ✅ **Authentication**: Each entry signed by user's private key  
 ✅ **Non-repudiation**: Digital signatures provide proof of origin  
-✅ **Replay Protection**: Monotonic counters prevent replay  
+✅ **Replay Protection**: Monotonic counters (protocol) + Request deduplication (web API)  
 ✅ **Tamper Evidence**: Blockchain hash chain detects ledger modifications  
 ✅ **Forward Secrecy**: Ephemeral DH keys protect past sessions  
 ✅ **Rate Limiting**: Prevents brute force attacks  
 ✅ **Input Validation**: Prevents injection attacks  
+✅ **Request Integrity**: HMAC-SHA256 protects web API requests from modification  
 
 ### Attack Resistance
 
 | Attack | Mechanism | Result |
 |--------|-----------|--------|
-| Passive eavesdropping | Capture encrypted traffic | ✗ Cannot decrypt without K_session |
-| Active MITM | Modify ciphertext | ✗ Authentication tag verification fails |
+| Passive eavesdropping | Capture encrypted traffic | ✗ Cannot decrypt without K_session (protocol level) |
+| Active MITM | Modify ciphertext | ✗ Authentication tag verification fails (protocol) |
+| Active MITM (Web API) | Modify JSON request | ✗ HMAC verification fails (web API level) |
 | Impersonation | Submit expense as another user | ✗ Signature verification fails |
-| Replay | Resend old valid message | ✗ Counter check rejects |
+| Replay (Protocol) | Resend old valid message | ✗ Counter check rejects |
+| Replay (Web API) | Resend same HTTP request | ✗ Request hash deduplication rejects |
 | Ledger tampering | Modify database entry | ✗ Hash chain breaks |
 | Brute force | Multiple login attempts | ✗ Rate limiting prevents |
 | SQL injection | Malicious input | ✗ Input validation prevents |
@@ -682,6 +721,7 @@ Client                                Server
 | ChaCha20-Poly1305 | <1ms | Per message (small) |
 | RSA-PSS Sign/Verify | ~1-2ms | Per expense |
 | SHA-256 Hash | <1ms | Per ledger entry |
+| HMAC-SHA256 (Web API) | <1ms | Per web API request |
 | Blockchain Verification | O(n) | Linear with entries |
 
 ### Scalability
@@ -722,6 +762,7 @@ See `DEPLOYMENT_GUIDE.md` for detailed instructions.
 ### Main Documentation Files
 
 - **README.md** (this file) - Main project documentation
+- **BURP_SUITE_TESTING_GUIDE.md** - Comprehensive Burp Suite attack testing guide (NEW)
 - **WEB_APP_README.md** - Web application guide
 - **BLOCKCHAIN_SECURITY_README.md** - Security documentation
 - **ENCRYPTION_ALGORITHMS_README.md** - Encryption algorithms guide
@@ -754,7 +795,24 @@ See `DEPLOYMENT_GUIDE.md` for detailed instructions.
 
 ## 📝 Changelog
 
-### Version 2.0 (Latest)
+### Version 2.1 (Latest - December 2024)
+
+**Added:**
+- ✅ **Web API Security Enhancements**:
+  - HMAC-SHA256 request integrity verification
+  - Replay attack protection with request hash deduplication
+  - Modification attack detection at web API level
+  - Session-based integrity keys
+  - Client-side HMAC computation using Web Crypto API
+- ✅ Burp Suite testing guide for all attack types
+- ✅ Enhanced error logging and debugging
+
+**Improved:**
+- ✅ Web API now protected against replay and modification attacks
+- ✅ Better error messages for security failures
+- ✅ Comprehensive attack testing documentation
+
+### Version 2.0
 
 **Added:**
 - ✅ Web application with Flask
@@ -846,12 +904,25 @@ This is an academic project for NYU CS6903/4783. All rights reserved.
 ## 🎓 Quick Start Summary
 
 1. **Install**: `pip install -r requirements.txt`
-2. **Run Web App**: `python web_app.py` → Open `http://localhost:5000`
+2. **Run Web App**: `python web_app.py` → Open `http://localhost:5000` (or `http://localhost:5001` if port 5000 is in use)
 3. **Run Demo**: `python main.py demo`
-4. **Test Attacks**: `python demos/demo_eavesdropping.py`
+4. **Test Attacks**: 
+   - CLI: `python demos/demo_eavesdropping.py`
+   - Burp Suite: See `BURP_SUITE_TESTING_GUIDE.md`
 5. **Run Tests**: `pytest tests/ -v`
 
 **For detailed instructions, see sections above.**
+
+## 🧪 Testing with Burp Suite
+
+The application now includes comprehensive Burp Suite testing capabilities:
+
+- **Eavesdropping**: Capture and examine intercepted requests
+- **Modification**: Test HMAC-based request integrity protection
+- **Replay**: Verify request deduplication prevents duplicate submissions
+- **Tampering**: Test database tampering detection (requires direct DB access)
+
+See **BURP_SUITE_TESTING_GUIDE.md** for complete step-by-step instructions.
 
 ---
 

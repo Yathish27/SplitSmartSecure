@@ -312,10 +312,16 @@ def api_login():
         
         if success:
             session['user_id'] = username
+            # Generate request integrity key for modification protection
+            # This key is used to compute HMAC of request body
+            integrity_key = os.urandom(32).hex()  # 256-bit key
+            session['integrity_key'] = integrity_key
+            
             return jsonify({
                 'success': True,
                 'message': f'Logged in as {username}',
-                'session_id': client.crypto.session_id
+                'session_id': client.crypto.session_id,
+                'integrity_key': integrity_key  # Send to client for HMAC computation
             })
         else:
             return jsonify({'success': False, 'error': 'Failed to establish secure session'}), 401
@@ -350,6 +356,10 @@ def api_add_expense():
         
         if not request.is_json:
             return jsonify({'success': False, 'error': 'Content-Type must be application/json'}), 400
+        
+        # Get raw request body BEFORE parsing JSON (for HMAC verification)
+        # This must be done before request.json to get the exact bytes sent by client
+        raw_request_body = request.get_data()
         
         data = request.json
         if not data:
@@ -390,6 +400,49 @@ def api_add_expense():
         if amount <= 0 or amount > MAX_AMOUNT:
             return jsonify({'success': False, 'error': f'Amount must be between $0.01 and ${MAX_AMOUNT:,.2f}'}), 400
         
+        # MODIFICATION PROTECTION: Verify request integrity using HMAC
+        integrity_key = session.get('integrity_key')
+        if integrity_key:
+            # Get HMAC from request header
+            request_hmac = request.headers.get('X-Request-HMAC')
+            if not request_hmac:
+                app.logger.error(f"Missing HMAC header for user {username}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Request integrity check failed: Missing HMAC header'
+                }), 400
+            
+            # Compute expected HMAC of request body
+            # Use the raw request body we captured before JSON parsing
+            if not raw_request_body:
+                app.logger.error(f"Raw request body is empty for user {username}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Request integrity check failed: Empty request body'
+                }), 400
+            
+            expected_hmac = hmac_lib.new(
+                integrity_key.encode('utf-8'),
+                raw_request_body,
+                hashlib.sha256
+            ).hexdigest()
+            
+            # Verify HMAC matches (constant-time comparison)
+            if not hmac_lib.compare_digest(request_hmac, expected_hmac):
+                # Log for debugging
+                app.logger.warning(f"HMAC mismatch for user {username}")
+                app.logger.debug(f"Expected HMAC: {expected_hmac}")
+                app.logger.debug(f"Received HMAC: {request_hmac}")
+                app.logger.debug(f"Request body: {raw_request_body.decode('utf-8', errors='ignore')}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Modification attack detected: Request integrity check failed'
+                }), 400  # 400 Bad Request - modified request
+            else:
+                app.logger.debug(f"HMAC verified for user {username}")
+        else:
+            app.logger.warning(f"No integrity key in session for user {username}")
+        
         # REPLAY PROTECTION: Create hash of request content
         # Hash includes: username, payer, amount, description
         # This prevents the exact same request from being processed multiple times
@@ -416,19 +469,35 @@ def api_add_expense():
                     'error': 'Replay attack detected: This exact request was already processed recently'
                 }), 409  # 409 Conflict
         
-        success = client.add_expense(payer, amount, description)
-        
-        if success:
-            # Only store hash if request succeeded (prevents replay of successful requests)
-            with _replay_protection_lock:
-                _replay_protection_store[request_hash] = current_time
+        try:
+            # Check if client has valid crypto session
+            if not client.crypto.has_session():
+                app.logger.error(f"Client {username} has no crypto session")
+                return jsonify({'success': False, 'error': 'Crypto session expired. Please login again'}), 401
             
-            return jsonify({
-                'success': True,
-                'message': f'Expense added: {payer} paid ${amount:.2f} for {description}'
-            })
-        else:
-            return jsonify({'success': False, 'error': 'Failed to add expense'}), 400
+            app.logger.info(f"Attempting to add expense for {username}: {payer} paid ${amount:.2f} for {description}")
+            app.logger.info(f"Session ID: {client.crypto.session_id}")
+            
+            success = client.add_expense(payer, amount, description)
+            
+            if success:
+                # Only store hash if request succeeded (prevents replay of successful requests)
+                with _replay_protection_lock:
+                    _replay_protection_store[request_hash] = current_time
+                
+                app.logger.info(f"Expense added successfully for {username}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Expense added: {payer} paid ${amount:.2f} for {description}'
+                })
+            else:
+                app.logger.error(f"client.add_expense() returned False for user {username}")
+                app.logger.error(f"Session ID: {client.crypto.session_id}")
+                app.logger.error(f"Has session: {client.crypto.has_session()}")
+                return jsonify({'success': False, 'error': 'Failed to add expense. Check server logs for details.'}), 400
+        except Exception as e:
+            app.logger.exception(f"Exception adding expense for user {username}: {str(e)}")
+            return jsonify({'success': False, 'error': f'Failed to add expense: {str(e)}'}), 500
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid amount'}), 400
     except Exception as e:
@@ -531,14 +600,21 @@ def api_status():
     """Get current session status."""
     username = session.get('user_id')
     has_session = False
+    session_id = None
     if username and username in clients:
         has_session = clients[username].crypto.has_session()
+        session_id = clients[username].crypto.session_id if has_session else None
+    
+    # Return integrity key if user is logged in (for modification protection)
+    integrity_key = session.get('integrity_key') if username else None
     
     return jsonify({
         'success': True,
         'logged_in': username is not None,
         'username': username,
-        'has_session': has_session
+        'has_session': has_session,
+        'session_id': session_id,
+        'integrity_key': integrity_key  # Include integrity key for HMAC computation
     })
 
 @app.route('/api/blockchain', methods=['GET'])
