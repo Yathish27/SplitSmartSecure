@@ -556,12 +556,16 @@ def api_balances():
         if balances is None:
             return jsonify({'success': False, 'error': 'Failed to retrieve balances'}), 500
         
-        # Format balances for display
-        formatted_balances = balances.get('detailed', {})
+        # Format balances for display - include both detailed and simplified
+        detailed_balances = balances.get('detailed', {})
+        simplified_balances = balances.get('simplified', [])
         
         return jsonify({
             'success': True,
-            'balances': formatted_balances
+            'balances': {
+                'detailed': detailed_balances,
+                'simplified': simplified_balances
+            }
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -394,18 +394,240 @@ body {
 .balances-content {
     display: flex;
     flex-direction: column;
+    gap: 2rem;
+}
+
+/* Balance Summary */
+.balance-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.summary-card {
+    background: var(--bg-tertiary);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: var(--primary-color);
+}
+
+.summary-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.summary-info {
+    flex: 1;
+}
+
+.summary-info h4 {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin: 0 0 0.25rem 0;
+}
+
+.summary-info p {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.balances-section {
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
 }
 
-.balance-item {
-    padding: 1rem;
-    background: var(--bg-tertiary);
+.balances-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.balances-section-title i {
+    color: var(--primary-color);
+}
+
+/* Simplified Balances (Who Owes Whom) */
+.simplified-balances {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.debt-item {
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    border: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+    animation: slideInLeft 0.4s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.debt-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+}
+
+.debt-item:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.debt-arrow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+}
+
+.debt-from,
+.debt-to {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-primary);
     border-radius: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    min-width: 120px;
+    justify-content: center;
+}
+
+.debt-from i,
+.debt-to i {
+    color: var(--primary-color);
+    font-size: 0.9rem;
+}
+
+.debt-arrow-icon {
+    color: var(--primary-color);
+    font-size: 1.25rem;
+    padding: 0 0.5rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.debt-amount {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    border-radius: 0.5rem;
+    color: white;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3);
+    min-width: 100px;
+    justify-content: center;
+}
+
+.debt-amount-value {
+    font-size: 1.2rem;
+}
+
+.all-settled {
+    text-align: center;
+    padding: 2rem;
+    background: var(--bg-tertiary);
+    border-radius: 0.75rem;
+    border: 2px dashed var(--success-color);
+}
+
+.all-settled i {
+    font-size: 3rem;
+    color: var(--success-color);
+    margin-bottom: 1rem;
+    animation: bounce 2s ease-in-out infinite;
+}
+
+.all-settled p {
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* Detailed Balances (Net Balances) */
+.detailed-balances {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.balance-item {
+    padding: 1rem 1.25rem;
+    background: var(--bg-tertiary);
+    border-radius: 0.75rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     border-left: 4px solid var(--secondary-color);
     animation: fadeIn 0.3s ease;
+    transition: all 0.3s ease;
+}
+
+.balance-item:hover {
+    transform: translateX(4px);
+    box-shadow: var(--shadow);
 }
 
 .balance-item.positive {
@@ -416,13 +638,33 @@ body {
     border-left-color: var(--error-color);
 }
 
+.balance-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.balance-info i {
+    color: var(--primary-color);
+    font-size: 1rem;
+}
+
 .balance-label {
     font-weight: 500;
+    color: var(--text-primary);
+    font-size: 1rem;
 }
 
 .balance-amount {
     font-size: 1.25rem;
     font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.balance-amount i {
+    font-size: 0.9rem;
 }
 
 .balance-amount.positive {
@@ -1307,6 +1549,36 @@ body {
     
     .attack-protection-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .balance-summary {
+        grid-template-columns: 1fr;
+    }
+    
+    .debt-arrow {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .debt-arrow-icon {
+        transform: rotate(90deg);
+    }
+    
+    .debt-item {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .debt-amount {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .debt-from,
+    .debt-to {
+        min-width: auto;
+        width: 100%;
     }
 }
 

@@ -559,22 +559,140 @@ async function loadBalances() {
 function displayBalances(balances) {
     const balancesContent = document.getElementById('balancesContent');
     
-    if (!balances || Object.keys(balances).length === 0) {
+    if (!balances) {
         balancesContent.innerHTML = '<div class="empty-state"><i class="fas fa-balance-scale"></i><p>No balances to display</p></div>';
         return;
     }
     
-    balancesContent.innerHTML = Object.entries(balances).map(([user, balance]) => {
-        const isPositive = balance >= 0;
-        return `
-            <div class="balance-item ${isPositive ? 'positive' : 'negative'}">
-                <span class="balance-label">${user}</span>
-                <span class="balance-amount ${isPositive ? 'positive' : 'negative'}">
-                    ${isPositive ? '+' : ''}$${Math.abs(balance).toFixed(2)}
-                </span>
+    const detailed = balances.detailed || {};
+    const simplified = balances.simplified || [];
+    
+    // If no balances at all
+    if (Object.keys(detailed).length === 0 && simplified.length === 0) {
+        balancesContent.innerHTML = '<div class="empty-state"><i class="fas fa-balance-scale"></i><p>No balances to display</p></div>';
+        return;
+    }
+    
+    let html = '';
+    
+    // Calculate summary statistics
+    const totalOwed = simplified.reduce((sum, debt) => sum + debt.amount, 0);
+    const totalDebts = Object.values(detailed).filter(b => b < 0).reduce((sum, b) => sum + Math.abs(b), 0);
+    const totalCredits = Object.values(detailed).filter(b => b > 0).reduce((sum, b) => sum + b, 0);
+    
+    // Display summary
+    if (simplified.length > 0 || Object.keys(detailed).length > 0) {
+        html += `
+            <div class="balance-summary">
+                <div class="summary-card">
+                    <div class="summary-icon" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                        <i class="fas fa-arrow-down"></i>
+                    </div>
+                    <div class="summary-info">
+                        <h4>Total Owed</h4>
+                        <p>$${totalOwed.toFixed(2)}</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <i class="fas fa-arrow-up"></i>
+                    </div>
+                    <div class="summary-info">
+                        <h4>Total to Receive</h4>
+                        <p>$${totalCredits.toFixed(2)}</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-icon" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <div class="summary-info">
+                        <h4>Transactions</h4>
+                        <p>${simplified.length}</p>
+                    </div>
+                </div>
             </div>
         `;
-    }).join('');
+    }
+    
+    // Display simplified balances (who owes whom) - Splitwise style
+    if (simplified.length > 0) {
+        html += `
+            <div class="balances-section">
+                <h3 class="balances-section-title">
+                    <i class="fas fa-exchange-alt"></i> Who Owes Whom
+                </h3>
+                <div class="simplified-balances">
+                    ${simplified.map(debt => `
+                        <div class="debt-item">
+                            <div class="debt-arrow">
+                                <div class="debt-from">
+                                    <i class="fas fa-user"></i>
+                                    <span class="debt-person">${escapeHtml(debt.from)}</span>
+                                </div>
+                                <div class="debt-arrow-icon">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                                <div class="debt-to">
+                                    <i class="fas fa-user"></i>
+                                    <span class="debt-person">${escapeHtml(debt.to)}</span>
+                                </div>
+                            </div>
+                            <div class="debt-amount">
+                                <span class="debt-amount-value">$${debt.amount.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="balances-section">
+                <div class="all-settled">
+                    <i class="fas fa-check-circle"></i>
+                    <p>All settled! No one owes anyone.</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Display detailed balances (net balances)
+    if (Object.keys(detailed).length > 0) {
+        html += `
+            <div class="balances-section">
+                <h3 class="balances-section-title">
+                    <i class="fas fa-chart-line"></i> Net Balances
+                </h3>
+                <div class="detailed-balances">
+                    ${Object.entries(detailed).map(([user, balance]) => {
+                        const isPositive = balance >= 0;
+                        return `
+                            <div class="balance-item ${isPositive ? 'positive' : 'negative'}">
+                                <div class="balance-info">
+                                    <i class="fas fa-user"></i>
+                                    <span class="balance-label">${escapeHtml(user)}</span>
+                                </div>
+                                <span class="balance-amount ${isPositive ? 'positive' : 'negative'}">
+                                    ${isPositive ? '<i class="fas fa-arrow-up"></i>' : '<i class="fas fa-arrow-down"></i>'}
+                                    ${isPositive ? '+' : ''}$${Math.abs(balance).toFixed(2)}
+                                </span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    balancesContent.innerHTML = html;
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Verify Tampering
